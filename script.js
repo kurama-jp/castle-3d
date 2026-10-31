@@ -185,7 +185,15 @@ function groundHeight(x, z) {
   const hills = d < 130 ? 0 : noise2(x * 0.05, z * 0.05) * Math.min((d - 130) * 0.06, 9);
   // 谷（高架橋が渡る窪み）：中心から東側へ伸びる
   const valley = Math.exp(-Math.pow((z + 40 - x * 0.35) / 26, 2)) * Math.max(0, Math.min(1, (d - 120) / 90)) * -7;
-  return mound + hills + valley - 0.1;
+  // 湖盆（南側＝正面手前）：ホグワーツの黒湖にあたる窪み
+  const ex = (x - 15) / 125, ez = (z - 165) / 82;
+  const e = Math.sqrt(ex * ex + ez * ez);
+  let lake = 0;
+  if (e < 1.25) {
+    const t = Math.max(0, (1.25 - e) / 0.85);
+    lake = -8.5 * (t * t * (3 - 2 * t));
+  }
+  return mound + hills + valley + lake - 0.1;
 }
 const groundGeo = new THREE.CircleGeometry(700, 128, 0, Math.PI * 2);
 groundGeo.rotateX(-Math.PI / 2);
@@ -199,6 +207,15 @@ groundGeo.rotateX(-Math.PI / 2);
 const ground = new THREE.Mesh(groundGeo, groundMat);
 ground.receiveShadow = true;
 scene.add(ground);
+
+/* 湖面（南側の湖盆に合わせた楕円） */
+const waterMat = new THREE.MeshStandardMaterial({ color: 0x2e4d66, transparent: true, opacity: 0.9, roughness: 0.18, metalness: 0.25 });
+const water = new THREE.Mesh(new THREE.CircleGeometry(1, 48), waterMat);
+water.rotation.x = -Math.PI / 2;
+water.scale.set(122, 80, 1);
+water.position.set(15, 0.55, 165);
+water.receiveShadow = true;
+scene.add(water);
 
 /* ================= 岩山 ================= */
 const PLATEAU_Y = 36;
@@ -544,8 +561,8 @@ makeWall(-33, 2, 16, 10, Math.PI / 2 - 0.1);
   const pathMat = new THREE.MeshStandardMaterial({ color: 0x8a6f47, roughness: 1 });
   for (let i = 0; i < 16; i++) {
     const t = i / 15;
-    const x = 24 + Math.sin(t * 2.2) * 9 + t * 26;
-    const z = 96 + t * 85;
+    const x = 24 + Math.sin(t * 2.2) * 9 + t * 30;
+    const z = 96 + t * 40;
     const seg = new THREE.Mesh(new THREE.BoxGeometry(7.5, 0.35, 7), pathMat);
     seg.position.set(x, groundHeight(x, z) + 0.22, z);
     seg.rotation.y = Math.cos(t * 2.2) * 0.35;
@@ -557,7 +574,8 @@ makeWall(-33, 2, 16, 10, Math.PI / 2 - 0.1);
 /* ================= ふもとの小屋 ================= */
 {
   const hut = new THREE.Group();
-  hut.position.set(58, groundHeight(58, 74) - 0.15, 74);
+  // 湖畔の舟小屋として、湖の北岸へ移設
+  hut.position.set(58, groundHeight(58, 130) - 0.15, 130);
   hut.rotation.y = -0.5;
   const body = shadowed(new THREE.Mesh(new THREE.BoxGeometry(10, 6, 8), stoneMat));
   body.position.y = 3; hut.add(body);
@@ -589,6 +607,8 @@ makeWall(-33, 2, 16, 10, Math.PI / 2 - 0.1);
     const d = 95 + rand() * 260;
     const x = Math.cos(a) * d, z = Math.sin(a) * d;
     if (z > 30 && Math.abs(x - 22) < 20 && d < 190) continue; // 階段道のあたりは空ける
+    const lex = (x - 15) / 125, lez = (z - 165) / 82;
+    if (lex * lex + lez * lez < 1.05) continue; // 湖の中には木を生やさない
     const s = 0.75 + rand() * 0.9;
     const gy = groundHeight(x, z) - 0.2;
     dummy.position.set(x, gy + 1.2 * s, z);
@@ -736,6 +756,7 @@ function animate() {
     controls.target.lerpVectors(camTween.fromTg, camTween.toTg, e);
     if (t >= 1) camTween = null;
   }
+  water.position.y = 0.55 + Math.sin(clock.elapsedTime * 0.6) * 0.05;
   clouds.children.forEach((cl, i) => {
     cl.position.x += dt * (1.1 + (i % 4) * 0.3);
     if (cl.position.x > 520) cl.position.x = -520;
