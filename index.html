@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>岩山の城 | 3Dビューア</title>
+<meta name="description" content="岩山の上に立つ城を3Dで眺めるサイト。タッチやドラッグで視点を自由に動かせます。">
+<link rel="stylesheet" href="style.css">
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+<div id="scene-container" aria-label="城の3Dビュー"></div>
+
+<header class="panel title-panel">
+  <h1>岩山の城</h1>
+  <p>ドラッグ／スワイプで回転、ピンチで拡大・縮小できます。上から見下ろすこともできます。</p>
+</header>
+
+<nav class="panel view-panel" aria-label="視点ボタン">
+  <button type="button" data-view="front" class="active">正面</button>
+  <button type="button" data-view="top">真上</button>
+  <button type="button" data-view="side">横から</button>
+  <button type="button" data-view="back">裏側</button>
+  <button type="button" data-view="close">塔に接近</button>
+</nav>
+
+<div class="panel option-panel">
+  <div class="row" role="group" aria-label="時間帯">
+    <button type="button" data-time="day" class="active">昼</button>
+    <button type="button" data-time="dusk">夕方</button>
+    <button type="button" data-time="night">夜</button>
+  </div>
+  <div class="row">
+    <button type="button" id="rotateToggle" aria-pressed="false">自動回転：オフ</button>
+    <button type="button" id="resetView">視点をリセット</button>
+  </div>
+</div>
+
+<p id="loading">読み込み中…</p>
+
+<script type="module" src="script.js"></script>
+</body>
+</html>

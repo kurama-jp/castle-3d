@@ -1,0 +1,80 @@
+/* 岩山の城 | 3Dビューア */
+:root{
+  --panel-bg: rgba(20, 24, 34, .62);
+  --panel-text: #f5efe2;
+  --panel-sub: rgba(245, 239, 226, .75);
+  --accent: #e8b34b;
+  --btn-bg: rgba(255, 255, 255, .10);
+  --btn-bg-active: #e8b34b;
+  --btn-text-active: #221a08;
+}
+*{ box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body{
+  margin: 0; padding: 0; height: 100%; overflow: hidden;
+  font-family: "Hiragino Maru Gothic ProN", "Hiragino Sans", "Noto Sans JP", system-ui, sans-serif;
+  background: #0e1420;
+}
+#scene-container{
+  position: fixed; inset: 0;
+  touch-action: none; /* タッチ操作を視点移動に使うため、ページ側のスクロールを止める */
+}
+#scene-container canvas{ display: block; }
+
+.panel{
+  position: fixed; z-index: 10;
+  background: var(--panel-bg);
+  color: var(--panel-text);
+  border: 1px solid rgba(255,255,255,.14);
+  border-radius: 14px;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  padding: 10px 12px;
+}
+.title-panel{
+  top: 12px; left: 12px; max-width: min(78vw, 340px);
+  pointer-events: none;
+}
+.title-panel h1{
+  margin: 0 0 4px; font-size: 20px; letter-spacing: .06em;
+}
+.title-panel p{
+  margin: 0; font-size: 12px; line-height: 1.6; color: var(--panel-sub);
+}
+.view-panel{
+  left: 50%; bottom: 12px; transform: translateX(-50%);
+  display: flex; gap: 6px; flex-wrap: wrap; justify-content: center;
+  max-width: 94vw;
+}
+.option-panel{
+  top: 12px; right: 12px;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.option-panel .row{ display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
+
+button{
+  appearance: none; border: 1px solid rgba(255,255,255,.18);
+  background: var(--btn-bg); color: var(--panel-text);
+  font: inherit; font-size: 13px;
+  padding: 8px 12px; border-radius: 999px; cursor: pointer;
+  white-space: nowrap;
+}
+button:active{ transform: scale(.97); }
+button.active{
+  background: var(--btn-bg-active); color: var(--btn-text-active);
+  border-color: transparent; font-weight: 700;
+}
+#loading{
+  position: fixed; z-index: 20; left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  margin: 0; color: var(--panel-text); font-size: 14px;
+  background: var(--panel-bg); padding: 10px 18px; border-radius: 999px;
+}
+#loading.hidden{ display: none; }
+
+@media (max-width: 560px){
+  .title-panel{ max-width: 56vw; padding: 8px 10px; }
+  .title-panel h1{ font-size: 17px; }
+  .title-panel p{ font-size: 11px; }
+  .option-panel{ padding: 8px; }
+  button{ font-size: 12px; padding: 7px 10px; }
+}
