@@ -174,9 +174,12 @@ groundGeo.rotateX(-Math.PI / 2);
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i), z = pos.getZ(i);
     const d = Math.hypot(x, z);
-    // 城山のふもと付近は平らにし、遠くほど緩やかな丘にする
-    const h = d < 130 ? 0 : noise2(x * 0.05, z * 0.05) * Math.min((d - 130) * 0.06, 9);
-    pos.setY(i, h - 0.15);
+    // 城のある中心へ向けて地面がなだらかに盛り上がる（平らにしない）
+    const u = Math.max(0, Math.min(1, (215 - d) / 105));
+    const mound = 5.2 * (u * u * (3 - 2 * u));
+    // 遠くは緩やかな丘
+    const hills = d < 130 ? 0 : noise2(x * 0.05, z * 0.05) * Math.min((d - 130) * 0.06, 9);
+    pos.setY(i, mound + hills - 0.1);
   }
   groundGeo.computeVertexNormals();
 }
@@ -186,7 +189,7 @@ scene.add(ground);
 
 /* ================= 岩山 ================= */
 const PLATEAU_Y = 36;
-const rockGeo = new THREE.CylinderGeometry(46, 118, PLATEAU_Y, 72, 10);
+const rockGeo = new THREE.CylinderGeometry(46, 118, PLATEAU_Y + 12, 72, 10);
 {
   const pos = rockGeo.attributes.position;
   for (let i = 0; i < pos.count; i++) {
@@ -201,8 +204,27 @@ const rockGeo = new THREE.CylinderGeometry(46, 118, PLATEAU_Y, 72, 10);
   rockGeo.computeVertexNormals();
 }
 const rock = shadowed(new THREE.Mesh(rockGeo, rockMat));
-rock.position.y = PLATEAU_Y / 2;
+rock.position.y = PLATEAU_Y / 2 - 6; // 下部を地面に埋めて、土台が浮いて見えないようにする
 scene.add(rock);
+
+/* 岩山の裾野：地面へなだらかに繋がる斜面 */
+const skirtGeo = new THREE.CylinderGeometry(108, 165, 16, 72, 6);
+{
+  const pos = skirtGeo.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), z = pos.getZ(i);
+    const d = Math.hypot(x, z);
+    if (d > 1) {
+      const n = noise2(x * 0.09, z * 0.09) * 6 + noise2(x * 0.3, z * 0.3) * 1.8;
+      const s = (d + n) / d;
+      pos.setX(i, x * s); pos.setZ(i, z * s);
+    }
+  }
+  skirtGeo.computeVertexNormals();
+}
+const skirt = shadowed(new THREE.Mesh(skirtGeo, rockMat));
+skirt.position.y = 2; // -6〜10：下は地面に埋まり、上は岩山に重なる
+scene.add(skirt);
 
 /* 山頂の平地（城の敷地） */
 const plateau = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(52, 50, 3, 48), groundMat));
