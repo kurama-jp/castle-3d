@@ -190,12 +190,13 @@ function groundHeight(x, z) {
   const e = Math.sqrt(ex * ex + ez * ez);
   let lake = 0;
   if (e < 1.25) {
-    const t = Math.max(0, (1.25 - e) / 0.85);
+    const t = Math.max(0, Math.min(1, (1.25 - e) / 0.85));
     lake = -8.5 * (t * t * (3 - 2 * t));
   }
   return mound + hills + valley + lake - 0.1;
 }
-const groundGeo = new THREE.CircleGeometry(700, 128, 0, Math.PI * 2);
+/* 格子状の平面を使う（円盤ジオメトリでは内側に頂点がなく、地形の凹凸や湖盆が作れないため） */
+const groundGeo = new THREE.PlaneGeometry(1500, 1500, 180, 180);
 groundGeo.rotateX(-Math.PI / 2);
 {
   const pos = groundGeo.attributes.position;
@@ -561,8 +562,8 @@ makeWall(-33, 2, 16, 10, Math.PI / 2 - 0.1);
   const pathMat = new THREE.MeshStandardMaterial({ color: 0x8a6f47, roughness: 1 });
   for (let i = 0; i < 16; i++) {
     const t = i / 15;
-    const x = 24 + Math.sin(t * 2.2) * 9 + t * 30;
-    const z = 96 + t * 40;
+    const x = 24 + Math.sin(t * 2.2) * 5 + t * 50;
+    const z = 96 + Math.sin(t * 3.1) * 4;
     const seg = new THREE.Mesh(new THREE.BoxGeometry(7.5, 0.35, 7), pathMat);
     seg.position.set(x, groundHeight(x, z) + 0.22, z);
     seg.rotation.y = Math.cos(t * 2.2) * 0.35;
@@ -574,9 +575,9 @@ makeWall(-33, 2, 16, 10, Math.PI / 2 - 0.1);
 /* ================= ふもとの小屋 ================= */
 {
   const hut = new THREE.Group();
-  // 湖畔の舟小屋として、湖の北岸へ移設
-  hut.position.set(58, groundHeight(58, 130) - 0.15, 130);
-  hut.rotation.y = -0.5;
+  // 湖畔の舟小屋として、湖の北岸の乾いた高みに配置
+  hut.position.set(74, groundHeight(74, 96) - 0.15, 96);
+  hut.rotation.y = -0.9;
   const body = shadowed(new THREE.Mesh(new THREE.BoxGeometry(10, 6, 8), stoneMat));
   body.position.y = 3; hut.add(body);
   const roofShape = new THREE.Shape();
