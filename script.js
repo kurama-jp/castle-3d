@@ -70,6 +70,16 @@ function speckle(ctx, size, colors, count, rMin, rMax) {
 const stoneTex = canvasTexture(512, (ctx, s) => {
   ctx.fillStyle = '#a4916f'; ctx.fillRect(0, 0, s, s);
   speckle(ctx, s, ['#8f7c5c', '#b7a582', '#97835f', '#c0ae8a'], 2600, 2, 9);
+  // 雨だれの黒ずみと苔（風化の表現）
+  for (let i = 0; i < 46; i++) {
+    const x = rand() * s;
+    ctx.fillStyle = 'rgba(52,44,32,0.20)';
+    ctx.fillRect(x, rand() * s * 0.4, 2 + rand() * 5, 40 + rand() * 130);
+  }
+  for (let i = 0; i < 26; i++) {
+    ctx.fillStyle = 'rgba(84,102,58,0.20)';
+    ctx.beginPath(); ctx.arc(rand() * s, s * 0.55 + rand() * s * 0.45, 6 + rand() * 16, 0, Math.PI * 2); ctx.fill();
+  }
   ctx.strokeStyle = 'rgba(70,58,40,0.55)'; ctx.lineWidth = 3;
   const rows = 8, rh = s / rows;
   for (let r = 0; r <= rows; r++) {
@@ -167,19 +177,22 @@ scene.add(sun);
 scene.add(sun.target);
 
 /* ================= 地面（見える範囲いっぱいの地形） ================= */
-const groundGeo = new THREE.CircleGeometry(700, 96, 0, Math.PI * 2);
+/* 地面の高さ（中心へ向けて盛り上がり、遠くは緩やかな丘） */
+function groundHeight(x, z) {
+  const d = Math.hypot(x, z);
+  const u = Math.max(0, Math.min(1, (215 - d) / 105));
+  const mound = 5.2 * (u * u * (3 - 2 * u));
+  const hills = d < 130 ? 0 : noise2(x * 0.05, z * 0.05) * Math.min((d - 130) * 0.06, 9);
+  // 谷（高架橋が渡る窪み）：中心から東側へ伸びる
+  const valley = Math.exp(-Math.pow((z + 40 - x * 0.35) / 26, 2)) * Math.max(0, Math.min(1, (d - 120) / 90)) * -7;
+  return mound + hills + valley - 0.1;
+}
+const groundGeo = new THREE.CircleGeometry(700, 128, 0, Math.PI * 2);
 groundGeo.rotateX(-Math.PI / 2);
 {
   const pos = groundGeo.attributes.position;
   for (let i = 0; i < pos.count; i++) {
-    const x = pos.getX(i), z = pos.getZ(i);
-    const d = Math.hypot(x, z);
-    // 城のある中心へ向けて地面がなだらかに盛り上がる（平らにしない）
-    const u = Math.max(0, Math.min(1, (215 - d) / 105));
-    const mound = 5.2 * (u * u * (3 - 2 * u));
-    // 遠くは緩やかな丘
-    const hills = d < 130 ? 0 : noise2(x * 0.05, z * 0.05) * Math.min((d - 130) * 0.06, 9);
-    pos.setY(i, mound + hills - 0.1);
+    pos.setY(i, groundHeight(pos.getX(i), pos.getZ(i)));
   }
   groundGeo.computeVertexNormals();
 }
@@ -280,7 +293,10 @@ function makeTower(x, z, r, h, roofH, opts) {
   const collar = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(r * 1.12, r * 0.98, 2.2, 20), stoneDark));
   collar.position.y = h + 1.1;
   g.add(collar);
-  const roof = shadowed(new THREE.Mesh(new THREE.ConeGeometry(r * 1.22, roofH, 20), slateMat));
+  const roofMatVar = slateMat.clone();
+  const tint = 0.88 + rand() * 0.24;
+  roofMatVar.color.setScalar(tint);
+  const roof = shadowed(new THREE.Mesh(new THREE.ConeGeometry(r * 1.22, roofH, 20), roofMatVar));
   roof.position.y = h + 2.2 + roofH / 2;
   g.add(roof);
   const finial = new THREE.Mesh(new THREE.SphereGeometry(0.55, 10, 8), slateMat);
@@ -296,6 +312,17 @@ function makeTower(x, z, r, h, roofH, opts) {
       const rr = r * 0.96 + 0.08;
       addWindow(g, Math.cos(a) * rr, wy, Math.sin(a) * rr, -a + Math.PI / 2 + Math.PI);
     }
+  }
+  // 小さな明かり窓を不規則に散らす（遠目にも生活感と実在感が出る）
+  const smallWinGeo = new THREE.PlaneGeometry(0.85, 1.3);
+  for (let i = 0; i < 7; i++) {
+    const lv = 0.18 + rand() * 0.72;
+    const a = rand() * Math.PI * 2;
+    const rr = r * (1 - 0.08 * lv) + 0.1;
+    const w = new THREE.Mesh(smallWinGeo, windowMat);
+    w.position.set(Math.cos(a) * rr, h * lv, Math.sin(a) * rr);
+    w.rotation.y = -a + Math.PI / 2 + Math.PI;
+    g.add(w);
   }
   castle.add(g);
   return g;
@@ -314,6 +341,41 @@ makeTower(32, -16, 3.8, 24, 12, { windowLevels: [0.45, 0.72] });
 makeTower(-30, -12, 4.4, 20, 11, { windowLevels: [0.45, 0.72] });
 makeTower(-24, 12, 3.4, 15, 8, { windowLevels: [0.55] });
 
+/* 尖頭アーチ窓（大広間用）：縦に長いゴシック窓 */
+function addLancetWindow(parent, x, y, z, ry) {
+  const shape = new THREE.Shape();
+  const w = 1.15, hgt = 5.6, arch = 1.6;
+  shape.moveTo(-w, -hgt / 2);
+  shape.lineTo(w, -hgt / 2);
+  shape.lineTo(w, hgt / 2 - arch);
+  shape.quadraticCurveTo(w, hgt / 2 - arch * 0.25, 0, hgt / 2);
+  shape.quadraticCurveTo(-w, hgt / 2 - arch * 0.25, -w, hgt / 2 - arch);
+  shape.closePath();
+  const win = new THREE.Mesh(new THREE.ShapeGeometry(shape), windowMat);
+  win.position.set(x, y, z);
+  win.rotation.y = ry || 0;
+  parent.add(win);
+  const frameShape = new THREE.Shape();
+  const fw = w + 0.32, fh = hgt + 0.55;
+  frameShape.moveTo(-fw, -fh / 2);
+  frameShape.lineTo(fw, -fh / 2);
+  frameShape.lineTo(fw, fh / 2 - arch);
+  frameShape.quadraticCurveTo(fw, fh / 2 - arch * 0.25, 0, fh / 2);
+  frameShape.quadraticCurveTo(-fw, fh / 2 - arch * 0.25, -fw, fh / 2 - arch);
+  frameShape.closePath();
+  const frame = new THREE.Mesh(new THREE.ShapeGeometry(frameShape), stoneDark);
+  frame.position.set(x, y, z);
+  frame.rotation.y = ry || 0;
+  frame.translateZ(-0.14);
+  parent.add(frame);
+  // 中央の桟
+  const mullion = new THREE.Mesh(new THREE.BoxGeometry(0.22, hgt - 0.6, 0.1), stoneDark);
+  mullion.position.set(x, y, z);
+  mullion.rotation.y = ry || 0;
+  mullion.translateZ(0.06);
+  parent.add(mullion);
+}
+
 /* 大広間の棟（左）：箱＋切妻屋根 */
 {
   const hall = new THREE.Group();
@@ -331,11 +393,11 @@ makeTower(-24, 12, 3.4, 15, 8, { windowLevels: [0.55] });
   roof.position.set(-15.75, 13, 0);
   hall.add(roof);
   addBattlements(hall, 30, 14, 13.4);
-  // 窓の列（長辺の両側）
+  // 大広間らしい、縦に長い尖頭アーチ窓の列（長辺の両側）
   for (let i = 0; i < 6; i++) {
     const x = -12.5 + i * 5;
-    addWindow(hall, x, 7, 7.06, 0);
-    addWindow(hall, x, 7, -7.06, Math.PI);
+    addLancetWindow(hall, x, 6.8, 7.06, 0);
+    addLancetWindow(hall, x, 6.8, -7.06, Math.PI);
   }
   // 煙突
   for (const cx of [-9, 6]) {
@@ -343,6 +405,84 @@ makeTower(-24, 12, 3.4, 15, 8, { windowLevels: [0.55] });
     ch.position.set(cx, 18.5, 0); hall.add(ch);
   }
   castle.add(hall);
+}
+
+/* 大広間の奥に並ぶもう1棟（奥行きを出す） */
+{
+  const wing = new THREE.Group();
+  wing.position.set(-14, 0, -20);
+  wing.rotation.y = -0.04;
+  const body = shadowed(new THREE.Mesh(new THREE.BoxGeometry(24, 11, 11), stoneMat));
+  body.position.y = 5.5;
+  wing.add(body);
+  const roofShape2 = new THREE.Shape();
+  roofShape2.moveTo(-6.8, 0); roofShape2.lineTo(6.8, 0); roofShape2.lineTo(0, 5.4); roofShape2.closePath();
+  const roofGeo2 = new THREE.ExtrudeGeometry(roofShape2, { depth: 25, bevelEnabled: false });
+  roofGeo2.rotateY(Math.PI / 2);
+  const roof2 = shadowed(new THREE.Mesh(roofGeo2, slateMat));
+  roof2.position.set(-12.5, 11, 0);
+  wing.add(roof2);
+  for (let i = 0; i < 5; i++) {
+    addWindow(wing, -9.6 + i * 4.8, 6, 5.56, 0);
+  }
+  castle.add(wing);
+}
+/* 右の塔の群れをさらに密に（細い尖塔を追加） */
+makeTower(41, -8, 2.6, 18, 10, { windowLevels: [0.6] });
+makeTower(24, -20, 2.9, 22, 11, { windowLevels: [0.5, 0.75] });
+makeTower(38, 12, 2.4, 14, 8, { windowLevels: [0.6] });
+
+/* 高架橋：城から谷を渡って向かいの小岩山へ */
+{
+  const bridge = new THREE.Group();
+  const deckY = PLATEAU_Y - 6;
+  const start = new THREE.Vector3(46, deckY, -34);
+  const end = new THREE.Vector3(150, deckY - 4, -86);
+  const dir = end.clone().sub(start);
+  const len = dir.length();
+  const mid = start.clone().add(end).multiplyScalar(0.5);
+  const angle = Math.atan2(dir.x, dir.z);
+  const deck = shadowed(new THREE.Mesh(new THREE.BoxGeometry(7, 2.2, len), stoneMat));
+  deck.position.copy(mid);
+  deck.rotation.y = angle;
+  deck.rotateX(Math.atan2(start.y - end.y, Math.hypot(dir.x, dir.z)));
+  bridge.add(deck);
+  // アーチ脚（3本）
+  for (const t of [0.22, 0.5, 0.78]) {
+    const p = start.clone().lerp(end, t);
+    const gy = groundHeight(p.x, p.z);
+    const pierH = (deckY - 1) - gy;
+    if (pierH > 3) {
+      const pier = shadowed(new THREE.Mesh(new THREE.BoxGeometry(5.4, pierH, 4.2), stoneMat));
+      pier.position.set(p.x, gy + pierH / 2, p.z);
+      pier.rotation.y = angle;
+      bridge.add(pier);
+      const archTop = shadowed(new THREE.Mesh(new THREE.BoxGeometry(6.4, 2.6, 5), stoneDark));
+      archTop.position.set(p.x, deckY - 2.2, p.z);
+      archTop.rotation.y = angle;
+      bridge.add(archTop);
+    }
+  }
+  scene.add(bridge);
+  // 向かいの小岩山と小塔
+  const hillGeo = new THREE.CylinderGeometry(20, 44, 30, 40, 6);
+  const hp = hillGeo.attributes.position;
+  for (let i = 0; i < hp.count; i++) {
+    const x = hp.getX(i), z = hp.getZ(i);
+    const d = Math.hypot(x, z);
+    if (d > 1) { const n = noise2(x * 0.15, z * 0.15) * 3.4; const s = (d + n) / d; hp.setX(i, x * s); hp.setZ(i, z * s); }
+  }
+  hillGeo.computeVertexNormals();
+  const hill = shadowed(new THREE.Mesh(hillGeo, rockMat));
+  hill.position.set(168, 11, -96);
+  scene.add(hill);
+  const miniTower = new THREE.Group();
+  miniTower.position.set(168, 25, -96);
+  const mtBody = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(4.6, 5.2, 15, 14), stoneMat));
+  mtBody.position.y = 7.5; miniTower.add(mtBody);
+  const mtRoof = shadowed(new THREE.Mesh(new THREE.ConeGeometry(6, 10, 14), slateMat));
+  mtRoof.position.y = 20; miniTower.add(mtRoof);
+  scene.add(miniTower);
 }
 
 /* 塔をつなぐ城壁 */
@@ -390,7 +530,8 @@ makeWall(-33, 2, 16, 10, Math.PI / 2 - 0.1);
     // 正面やや右へ、ジグザグに下る
     const x = 10 + Math.sin(t * Math.PI * 1.6) * 14 + t * 10;
     const z = 44 + t * 52;
-    const y = PLATEAU_Y + 2 - t * (PLATEAU_Y + 1);
+    // 地面の高さより下にはならないよう止める（麓で地面にきちんと届く）
+    const y = Math.max(PLATEAU_Y + 2 - t * (PLATEAU_Y + 1), groundHeight(x, z) + 0.55);
     const step = shadowed(new THREE.Mesh(new THREE.BoxGeometry(9, 1.1, 3.4), stairMat));
     step.position.set(x, y, z);
     step.rotation.y = Math.cos(t * Math.PI * 1.6) * 0.5;
@@ -398,10 +539,25 @@ makeWall(-33, 2, 16, 10, Math.PI / 2 - 0.1);
   }
 }
 
+/* 麓から続く土の小道 */
+{
+  const pathMat = new THREE.MeshStandardMaterial({ color: 0x8a6f47, roughness: 1 });
+  for (let i = 0; i < 16; i++) {
+    const t = i / 15;
+    const x = 24 + Math.sin(t * 2.2) * 9 + t * 26;
+    const z = 96 + t * 85;
+    const seg = new THREE.Mesh(new THREE.BoxGeometry(7.5, 0.35, 7), pathMat);
+    seg.position.set(x, groundHeight(x, z) + 0.22, z);
+    seg.rotation.y = Math.cos(t * 2.2) * 0.35;
+    seg.receiveShadow = true;
+    scene.add(seg);
+  }
+}
+
 /* ================= ふもとの小屋 ================= */
 {
   const hut = new THREE.Group();
-  hut.position.set(58, 0, 74);
+  hut.position.set(58, groundHeight(58, 74) - 0.15, 74);
   hut.rotation.y = -0.5;
   const body = shadowed(new THREE.Mesh(new THREE.BoxGeometry(10, 6, 8), stoneMat));
   body.position.y = 3; hut.add(body);
@@ -434,15 +590,16 @@ makeWall(-33, 2, 16, 10, Math.PI / 2 - 0.1);
     const x = Math.cos(a) * d, z = Math.sin(a) * d;
     if (z > 30 && Math.abs(x - 22) < 20 && d < 190) continue; // 階段道のあたりは空ける
     const s = 0.75 + rand() * 0.9;
-    dummy.position.set(x, 1.2 * s, z);
+    const gy = groundHeight(x, z) - 0.2;
+    dummy.position.set(x, gy + 1.2 * s, z);
     dummy.scale.setScalar(s);
     dummy.rotation.y = rand() * Math.PI;
     dummy.updateMatrix();
     trunks.setMatrixAt(placed, dummy.matrix);
-    dummy.position.y = (2.6 + 4.2) * s;
+    dummy.position.y = gy + (2.6 + 4.2) * s;
     dummy.updateMatrix();
     foliage.setMatrixAt(placed * 2, dummy.matrix);
-    dummy.position.y = (2.6 + 7.6) * s;
+    dummy.position.y = gy + (2.6 + 7.6) * s;
     dummy.scale.setScalar(s * 0.68);
     dummy.updateMatrix();
     foliage.setMatrixAt(placed * 2 + 1, dummy.matrix);
@@ -457,7 +614,8 @@ makeWall(-33, 2, 16, 10, Math.PI / 2 - 0.1);
   for (let i = 0; i < 60; i++) {
     const a = rand() * Math.PI * 2;
     const d = 90 + rand() * 240;
-    dummy.position.set(Math.cos(a) * d, 0.8, Math.sin(a) * d);
+    const rx = Math.cos(a) * d, rz = Math.sin(a) * d;
+    dummy.position.set(rx, groundHeight(rx, rz) + 0.6, rz);
     dummy.scale.set(0.6 + rand() * 1.8, 0.5 + rand() * 1.1, 0.6 + rand() * 1.8);
     dummy.rotation.set(rand() * 3, rand() * 3, rand() * 3);
     dummy.updateMatrix();
